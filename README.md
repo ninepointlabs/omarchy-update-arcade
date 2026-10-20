@@ -1,0 +1,96 @@
+# Update Arcade
+
+Watching `omarchy update` compile things is fun the first time. By the fortieth
+time, it's about as gripping as the test pattern after the station signs off.
+
+Update Arcade puts a little **Play Asteroids** button in the top-right corner of
+the update terminal. Press it and the scrolling output is swapped for a vector
+Asteroids game drawn in your theme's colors. The update keeps chugging along
+underneath; a strip along the bottom of the game tells you what it's up to.
+
+When the update needs you (a sudo password, a "Remove orphaned packages?", a
+reboot question), the game pauses and steps aside on its own, so you're never
+the person who blew up rocks through a prompt for ten minutes. Answer it, hit
+the button again, and you're back where you left off.
+
+## Controls
+
+| Key | Does |
+| --- | --- |
+| ← → / A D | Turn |
+| ↑ / W | Thrust |
+| Space | Fire (and start a game) |
+| ↓ / S / Shift | Hyperspace |
+| P | Pause |
+| M | Mute (remembered) |
+| Esc | Back to the update |
+
+Extra ship every 10,000 points. Every so often a flying saucer drifts across
+taking potshots: the big one (200) sprays at random, the small one (1,000)
+actually aims, and it shows up more the better you're doing. Its shots break
+rocks too, but you don't get the points. Rude.
+
+## Sound
+
+Pew, boom, and the dread *dum-dum dum-dum* heartbeat that speeds up the longer
+a wave drags on, plus the saucer siren and thrust rumble. All of it is
+synthesized by `tools/make-sounds.py`, no samples borrowed from anybody's
+cabinet. Sound uses Qt Multimedia, which a stock Omarchy install may not have. Without
+it the game plays silent, like watching *Tron* on mute. To turn it up:
+
+```bash
+omarchy pkg add qt6-multimedia qt6-multimedia-ffmpeg
+omarchy restart shell
+```
+
+## High scores
+
+Crack the top ten and you get the full arcade treatment: three blinking
+letters, just like the Pizza Hut cabinet in 1982. Type your initials (or roll
+them with ↑ ↓ and sign with Enter). The table shows on the title and game-over
+screens and lives in `~/.local/state/omarchy-update-arcade/state.json`,
+so it's waiting for you next update.
+
+## Install
+
+```bash
+git clone https://github.com/ninepointlabs/omarchy-update-arcade
+cd omarchy-update-arcade
+./install.sh
+omarchy plugin enable ninepointlabs.update-arcade
+```
+
+It's a shell service, so there's nothing to place in the bar. The button only
+shows up while an update is running.
+
+## How it works
+
+A small probe (`bin/update-arcade-probe`) checks for an `omarchy-update` process
+every few seconds; that's a single `pgrep` while nothing is happening. During an
+update it finds the terminal window hosting it, and the shell lays a layer-shell
+surface exactly over that window. Until you press Play, only the button takes
+clicks, so the terminal works as usual. Prompt detection reads the tail of
+`/tmp/omarchy-update.log`, which `omarchy update` already writes.
+
+Updates finish by restarting the shell, which ends the game too. Consider it the
+"insert coin" screen.
+
+## Keybinding (optional)
+
+`omarchy-shell ninepointlabs.update-arcade toggle` flips between the game and
+the update, if you'd rather not reach for the mouse. `play`, `hide` and `state`
+work too.
+
+## Tests
+
+```bash
+node tests/model.test.cjs   # game rules, saucers, sound events, prompts, score table
+tests/qml/run.sh            # compiles the QML in a windowless Quickshell, checks sounds load
+NO_SOUND=1 tests/qml/run.sh # same without Qt Multimedia: only Sounds.qml should FAIL
+```
+
+`python3 tools/make-sounds.py` regenerates `sounds/`.
+
+## License
+
+MIT

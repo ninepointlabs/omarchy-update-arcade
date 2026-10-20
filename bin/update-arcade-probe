@@ -1,0 +1,59 @@
+#!/bin/bash
+# Prints one JSON object describing the running `omarchy update`, if any:
+#   {"running":false}
+#   {"running":true,"window":{...}|null,"monitor":{...}|null,"logTail":"...","logAge":3}
+# The window is the terminal that hosts the update: the Hyprland client whose
+# pid is an ancestor of an omarchy-update process.
+
+set -uo pipefail
+PATH=/usr/bin:/bin
+export PATH
+
+log=/tmp/omarchy-update.log
+
+mapfile -t update_pids < <(pgrep -x omarchy-update)
+if (( ${#update_pids[@]} == 0 )); then
+  echo '{"running":false}'
+  exit 0
+fi
+
+declare -A seen=()
+for pid in "${update_pids[@]}"; do
+  while [[ $pid =~ ^[0-9]+$ ]] && (( pid > 1 )) && [[ -z ${seen[$pid]:-} ]]; do
+    seen[$pid]=1
+    pid=$(awk '/^PPid:/ { print $2 }' "/proc/$pid/status" 2>/dev/null)
+  done
+done
+ancestors=$(printf '%s\n' "${!seen[@]}" | jq -R 'tonumber' | jq -s .)
+
+clients=$(hyprctl clients -j 2>/dev/null) || clients='[]'
+monitors=$(hyprctl monitors -j 2>/dev/null) || monitors='[]'
+
+log_age=-1
+if [[ -f $log ]]; then
+  log_age=$(( $(date +%s) - $(stat -c %Y "$log") ))
+fi
+
+jq -cn \
+  --argjson ancestors "$ancestors" \
+  --argjson clients "$clients" \
+  --argjson monitors "$monitors" \
+  --rawfile logTail <(tail -c 4096 "$log" 2>/dev/null) \
+  --argjson logAge "$log_age" '
+  # A terminal like foot --server can own several windows; prefer the
+  # presentation terminal Omarchy launches updates in.
+  ([$clients[] | select(.mapped and (.pid as $p | any($ancestors[]; . == $p)))]
+    | sort_by(if .class == "org.omarchy.terminal" then 0 else 1 end)
+    | first) as $win
+  | ($win | if . then .monitor as $m | [$monitors[] | select(.id == $m)] | first else null end) as $mon
+  | {
+      running: true,
+      window: ($win | if . then {address, at, size, workspace: .workspace.id, fullscreen, class} else null end),
+      monitor: ($mon | if . then {
+        name, x, y,
+        workspace: .activeWorkspace.id,
+        special: .specialWorkspace.id
+      } else null end),
+      logTail: $logTail,
+      logAge: $logAge
+    }'
