@@ -11,7 +11,8 @@ export PATH
 
 log=/tmp/omarchy-update.log
 
-mapfile -t update_pids < <(pgrep -x omarchy-update)
+# Only this user's update; another account's process of the same name is not ours.
+mapfile -t update_pids < <(pgrep -u "$(id -u)" -x omarchy-update)
 if (( ${#update_pids[@]} == 0 )); then
   echo '{"running":false}'
   exit 0

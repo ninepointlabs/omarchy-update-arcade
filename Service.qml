@@ -77,7 +77,10 @@ Item {
     if (!playing) return
     playing = false
     // Hand the keyboard back to the terminal, where the update lives.
-    if (place) Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.focus({ window = \"address:" + place.address + "\" })"])
+    // The address goes into a Lua expression, so only take Hyprland's own shape.
+    if (place && /^0x[0-9a-f]+$/.test(place.address)) {
+      Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.focus({ window = \"address:" + place.address + "\" })"])
+    }
   }
 
   // omarchy-shell ninepointlabs.update-arcade toggle, e.g. from a keybinding.

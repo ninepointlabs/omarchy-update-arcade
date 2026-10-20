@@ -63,6 +63,28 @@ omarchy plugin enable ninepointlabs.update-arcade
 It's a shell service, so there's nothing to place in the bar. The button only
 shows up while an update is running.
 
+## Remove
+
+```bash
+omarchy plugin disable ninepointlabs.update-arcade
+rm -rf ~/.config/omarchy/plugins/ninepointlabs.update-arcade
+rm -rf ~/.local/state/omarchy-update-arcade   # high scores and mute, if you want them gone too
+```
+
+## Requirements
+
+- Omarchy with the Quickshell shell and Hyprland 0.56 or newer (it uses the
+  Lua `hl.dsp.focus` dispatch to hand the keyboard back to the terminal)
+- `jq`, `pgrep` and `hyprctl`, which every Omarchy install already has
+- Optional, for sound: Qt Multimedia (see [Sound](#sound))
+
+## What it touches
+
+Nothing outside its own folder and `~/.local/state/omarchy-update-arcade/`. It
+reads `/tmp/omarchy-update.log` (which `omarchy update` writes) and asks
+`hyprctl` where windows are; it never writes to the update, never types into
+its terminal, and needs no root.
+
 ## How it works
 
 A small probe (`bin/update-arcade-probe`) checks for an `omarchy-update` process
