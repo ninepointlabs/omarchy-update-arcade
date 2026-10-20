@@ -3,6 +3,11 @@
 Watching `omarchy update` compile things is fun the first time. By the fortieth
 time, it's about as gripping as the test pattern after the station signs off.
 
+[![Watch the Update Arcade trailer on YouTube](docs/trailer.jpg)](https://www.youtube.com/watch?v=_3-zkQPtRpg)
+
+*The trailer: two minutes, four voices, one heavy metal soundtrack, and a surfer
+who has read the same build log nine times.*
+
 Update Arcade puts a little **Play Asteroids** button in the top-right corner of
 the update terminal. Press it and the scrolling output is swapped for a vector
 Asteroids game drawn in your theme's colors. The update keeps chugging along
