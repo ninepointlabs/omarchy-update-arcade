@@ -4,6 +4,7 @@
 // run.sh stops it once the verdict is printed.
 import QtQuick
 import Quickshell
+import "Asteroids.js" as Asteroids
 
 ShellRoot {
   id: shell
@@ -12,6 +13,27 @@ ShellRoot {
   Loader { id: sounds; source: "Sounds.qml" }
   // Needs qs.Commons, which run.sh stages from the installed Omarchy shell.
   Loader { id: service; source: "Service.qml" }
+
+  // Regression: sound has to come on when a round starts from the title
+  // screen, with no pause in between (it once stayed silent until one).
+  property bool soundOnTitle: true
+  property bool soundInRound: false
+  Timer {
+    interval: 1200; running: true
+    onTriggered: { game.item.running = true; roundTimer.start() }
+  }
+  Timer {
+    id: roundTimer; interval: 400
+    onTriggered: {
+      shell.soundOnTitle = game.item.soundOn
+      Asteroids.start(game.item.state)
+      checkRound.start()
+    }
+  }
+  Timer {
+    id: checkRound; interval: 400
+    onTriggered: shell.soundInRound = game.item.soundOn
+  }
 
   Timer {
     interval: 2500
@@ -25,6 +47,8 @@ ShellRoot {
         return
       }
       console.log("OK Sounds.qml")
+      console.log(!shell.soundOnTitle ? "OK quiet on the title screen" : "FAIL sound on during the title screen")
+      console.log(shell.soundInRound ? "OK sound on once a round starts" : "FAIL sound still off after a round started")
       var pools = sounds.item.pools
       var bad = []
       var count = 0

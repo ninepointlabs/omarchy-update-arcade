@@ -21,6 +21,10 @@ FocusScope {
 
   property var state: null
   property bool paused: false
+  // Mirrors state.phase === "playing" as a real property: the game state is a
+  // plain JS object, so a binding that reads it never hears it change.
+  property bool inPlay: false
+  readonly property bool soundOn: sounds.item ? sounds.item.active : false
   readonly property var held: ({})
 
   function input() {
@@ -133,6 +137,7 @@ FocusScope {
       if (!s) return
       if (!root.paused) {
         Asteroids.step(s, frameTime, root.input())
+        root.inPlay = s.phase === "playing"
         var board = sounds.item
         if (board) for (var i = 0; i < s.events.length; i++) board.play(s.events[i])
       }
@@ -149,7 +154,7 @@ FocusScope {
       target: sounds.item
       when: sounds.item !== null
       property: "active"
-      value: root.running && !root.paused && !root.muted && root.state !== null && root.state.phase === "playing"
+      value: root.running && !root.paused && !root.muted && root.inPlay
     }
   }
 

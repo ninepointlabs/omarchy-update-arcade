@@ -44,6 +44,16 @@ assert.equal(model.needsInput("[sudo] password for tim: ", 3), true);
 assert.equal(model.needsInput(":: Proceed with installation? [Y/n] ", 3), true);
 assert.equal(model.needsInput("==> Packages to cleanBuild?\n==> [N]one [A]ll\n==> ", 3), true);
 assert.equal(model.needsInput("==> ", 1.5), false, "line prompts wait for 2s of quiet");
+// A PKGBUILD asking in its own words (seen in a real update), with makepkg's
+// ESC ( B colour resets around it.
+const rune = `${ESC}[1m${ESC}[34m  ->${ESC}(B${ESC}[m${ESC}[1m Please type absolute path to mounted Rune CD (e.g. /media/cdrom)${ESC}(B${ESC}[m`;
+assert.equal(model.lastLine(rune), "-> Please type absolute path to mounted Rune CD (e.g. /media/cdrom)");
+assert.equal(model.needsInput(rune, 3), true);
+assert.equal(model.needsInput(rune, 1.5), false, "still waits for 2s of quiet");
+assert.equal(model.needsInput("==> Enter the path to the license file\n", 3), true);
+assert.equal(model.needsInput("checking for size_t type... yes\nchecking whether to enable maintainer-specific portions of Makefiles... no\n", 30), false);
+assert.equal(model.needsInput("   Compiling typenum v1.17.0\n", 30), false);
+assert.equal(model.needsInput("  -> Selected 3 packages for removal\n", 30), false, "whole words only");
 // Ordinary progress is not a prompt, even when it pauses.
 assert.equal(model.needsInput("   Compiling serde v1.0.200\n", 30), false);
 assert.equal(model.needsInput("", 30), false);
