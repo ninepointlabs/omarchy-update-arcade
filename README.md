@@ -88,7 +88,9 @@ rm -rf ~/.local/state/omarchy-update-arcade   # high scores and mute, if you wan
 Nothing outside its own folder and `~/.local/state/omarchy-update-arcade/`. It
 reads `/tmp/omarchy-update.log` (which `omarchy update` writes) and asks
 `hyprctl` where windows are; it never writes to the update, never types into
-its terminal, and needs no root.
+its terminal, and needs no root. Window titles never leave the probe: it keeps
+only window positions, sizes and classes, and hands `hyprctl` output to `jq`
+through pipes, never on a command line where other users could read it.
 
 ## How it works
 
@@ -112,6 +114,7 @@ work too.
 
 ```bash
 node tests/model.test.cjs   # game rules, saucers, sound events, prompts, score table
+tests/probe.test.sh         # probe against fake hyprctl; no window title on any command line
 tests/qml/run.sh            # compiles the QML in a windowless Quickshell, checks sounds load
 NO_SOUND=1 tests/qml/run.sh # same without Qt Multimedia: only Sounds.qml should FAIL
 ```

@@ -27,8 +27,20 @@ for pid in "${update_pids[@]}"; do
 done
 ancestors=$(printf '%s\n' "${!seen[@]}" | jq -R 'tonumber' | jq -s .)
 
-clients=$(hyprctl clients -j 2>/dev/null) || clients='[]'
-monitors=$(hyprctl monitors -j 2>/dev/null) || monitors='[]'
+# Window titles are private, and anything on a command line is readable by
+# other users through /proc. hyprctl output therefore only ever reaches jq
+# through pipes, and is cut down to the fields needed to find and cover the
+# update terminal before anything else sees it.
+clients() {
+  hyprctl clients -j 2>/dev/null \
+    | jq -c '[.[] | {address, pid, mapped, class, at, size, fullscreen, monitor, workspace: {id: .workspace.id}}]' 2>/dev/null \
+    || echo '[]'
+}
+monitors() {
+  hyprctl monitors -j 2>/dev/null \
+    | jq -c '[.[] | {id, name, x, y, activeWorkspace: {id: .activeWorkspace.id}, specialWorkspace: {id: .specialWorkspace.id}}]' 2>/dev/null \
+    || echo '[]'
+}
 
 log_age=-1
 if [[ -f $log ]]; then
@@ -37,13 +49,15 @@ fi
 
 jq -cn \
   --argjson ancestors "$ancestors" \
-  --argjson clients "$clients" \
-  --argjson monitors "$monitors" \
+  --slurpfile clients <(clients) \
+  --slurpfile monitors <(monitors) \
   --rawfile logTail <(tail -c 4096 "$log" 2>/dev/null) \
   --argjson logAge "$log_age" '
+  ($clients[0] // []) as $clients
+  | ($monitors[0] // []) as $monitors
   # A terminal like foot --server can own several windows; prefer the
   # presentation terminal Omarchy launches updates in.
-  ([$clients[] | select(.mapped and (.pid as $p | any($ancestors[]; . == $p)))]
+  | ([$clients[] | select(.mapped and (.pid as $p | any($ancestors[]; . == $p)))]
     | sort_by(if .class == "org.omarchy.terminal" then 0 else 1 end)
     | first) as $win
   | ($win | if . then .monitor as $m | [$monitors[] | select(.id == $m)] | first else null end) as $mon

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ninepointlabs.update-arcade",
   "name": "Update Arcade",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Nine Point Labs",
   "license": "MIT",
   "description": "Puts a Play button in the corner of the omarchy update terminal. Press it to swap the scrolling build output for a game of Asteroids while the update keeps running underneath.",
