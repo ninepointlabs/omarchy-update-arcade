@@ -131,6 +131,7 @@ node tests/model.test.cjs   # game rules, saucers, sound events, prompts, score 
 tests/probe.test.sh         # probe against fake hyprctl; no window title on any command line
 tests/qml/run.sh            # compiles the QML in a windowless Quickshell, checks sounds load
 NO_SOUND=1 tests/qml/run.sh # same without Qt Multimedia: only Sounds.qml should FAIL
+tests/qml/behaviour.sh      # finished mode and save/resume, headless; nothing shows on screen
 ```
 
 `python3 tools/make-sounds.py` regenerates `sounds/`.
