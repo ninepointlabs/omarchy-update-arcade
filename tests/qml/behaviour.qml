@@ -54,6 +54,33 @@ ShellRoot {
         s.apply('{"running":false}')
         later(400, function() { check("update ends without restart: save deleted", !exists() && !s.playing); console.log("DONE") })
       })
+    } else if (scenario === "finished") {
+      // Title screen up when the update ends: it stays, with the banner.
+      s.apply(run); s.showGame()
+      s.apply('{"running":false}')
+      check("title screen stays up", s.playing && s.finished && s.place !== null && g.updateDone)
+      s.hideGame()
+      check("Esc closes it", !s.playing && !s.finished && s.place === null && !g.updateDone)
+      // A round in play: it keeps going, through game over and beyond.
+      startRound(s, g)
+      s.apply('{"running":false}')
+      check("round stays up", s.playing && s.finished && g.state.phase === "playing")
+      s.apply('{"running":false}')
+      check("stays across probes", s.playing && s.finished)
+      Asteroids.endGame(g.state)
+      if (g.state.phase === "entry") { g.phase = "entry"; Asteroids.signEntry(g.state, "2026-10-22") }
+      g.phase = "over"
+      later(3600, function() {
+        check("game over does not close it", s.playing && s.finished && s.place !== null)
+        Asteroids.start(g.state); g.phase = "playing"
+        check("plays again after the update", s.playing && s.finished)
+        s.apply(run)
+        check("new update: back to tracking", s.playing && !s.finished && s.updating && !g.updateDone)
+        s.apply('{"running":false}')
+        s.closeGame()
+        check("close clears it", !s.playing && !s.finished && s.place === null)
+        console.log("DONE")
+      })
     } else if (scenario === "kill") {
       startRound(s, g)
       g.state.score = 777
@@ -63,7 +90,7 @@ ShellRoot {
       s.apply('{"running":false}')
       check("offered mid-screen in finished mode", s.playing && s.finished && g.resumeOffer !== null
             && s.place.width === 1152 && s.place.x === 384 && s.place.address === "")
-      check("Q closes in finished mode", g.quitWithQ === true)
+      check("banner and Q in finished mode", g.updateDone === true)
       s.apply('{"running":false}')
       check("offer survives the next probe", s.playing && s.finished)
       g.acceptResume()
@@ -79,7 +106,7 @@ ShellRoot {
     } else if (scenario === "resume-updating") {
       s.apply(run)
       check("offered over the terminal", s.playing && !s.finished && g.resumeOffer !== null && s.place.address === "0xabc")
-      check("Q not a quit key while updating", g.quitWithQ === false)
+      check("no banner, Q not a quit key while updating", g.updateDone === false)
       g.resumeDeclined()
       later(400, function() { check("discard deletes the save and closes", !exists() && !s.playing && g.resumeOffer === null)
         s.apply(run)

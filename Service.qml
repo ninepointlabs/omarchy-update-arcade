@@ -11,8 +11,8 @@ import "Asteroids.js" as Asteroids
 // Watches for `omarchy update` and, while it runs, pins a small Play button
 // to the corner of its terminal. Play lays Asteroids over the terminal; the
 // update keeps going underneath. When the update asks a question the game
-// gets out of the way on its own. If the update ends mid-round, the game
-// stays up until the round is over or the player leaves. The round is saved
+// gets out of the way on its own. If the update ends with the game up, the
+// game carries on with an "update complete" banner until the player leaves. The round is saved
 // as it goes, since a successful update ends by restarting the shell, and
 // offered back when the shell comes up again.
 Item {
@@ -34,8 +34,8 @@ Item {
   property string status: ""
   property bool needsInput: false
   property bool playing: false
-  // The update ended while a round was going; the overlay stays on its last
-  // rectangle until the player is done.
+  // The update ended with the game up; the overlay stays on its last
+  // rectangle until the player leaves with Esc, Q or the button.
   property bool finished: false
   // A checked save from before a shell restart, not yet answered.
   property var pendingSave: null
@@ -64,8 +64,7 @@ Item {
       needsInput = false
       // The probe has no window for a finished update, so keep the last one,
       // as long as its screen is still there.
-      var keep = finished || Model.keepAfterUpdate(playing, game.phase) || (playing && game.resumeOffer !== null)
-      if (keep && place && screenNamed(place.screen)) {
+      if ((finished || playing) && place && screenNamed(place.screen)) {
         finished = true
         return
       }
@@ -340,22 +339,12 @@ Item {
         muted: root.muted
         onScoreSigned: function(table) { root.scoreTable = table; root.save() }
         onMuteToggled: { root.muted = !root.muted; root.save() }
-        quitWithQ: root.finished
+        updateDone: root.finished
         onHideRequested: root.closeGame()
         onResumed: root.dropSave()
         onResumeDeclined: root.closeGame()
-        // A round that ends is not worth saving any more. After the update,
-        // it also closes the game, once the player has seen the score.
-        onPhaseChanged: if (phase === "over") {
-          if (root.saving) root.dropSave()
-          if (root.finished) gameOverTimer.restart()
-        }
-      }
-
-      Timer {
-        id: gameOverTimer
-        interval: 3000
-        onTriggered: if (root.finished && game.phase === "over") root.hideGame()
+        // A round that ends is not worth saving any more.
+        onPhaseChanged: if (phase === "over" && root.saving) root.dropSave()
       }
 
       // What the update is up to, so nobody has to peek.
@@ -379,7 +368,7 @@ Item {
           font.pixelSize: 12
           color: Commons.Color.muted
           text: root.finished
-            ? "Update finished  ·  press Esc or Q when you're done" + (root.status ? "  ·  " + root.status : "")
+            ? "Update complete  ·  press Q or Esc when you're done" + (root.status ? "  ·  " + root.status : "")
             : "Updating  ·  " + (root.status || "working on it")
         }
       }

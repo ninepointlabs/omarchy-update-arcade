@@ -51,6 +51,7 @@ scenario() { # name, seconds
 }
 
 rm -f "$save"; scenario save 10
+rm -f "$save"; scenario finished 7
 rm -f "$save"; scenario hidden 6
 rm -f "$save"; fresh >"$save"; scenario resume-finished 8
 rm -f "$save"; fresh >"$save"; scenario resume-updating 5

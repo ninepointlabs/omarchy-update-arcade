@@ -78,13 +78,6 @@ function placement(report) {
   }
 }
 
-// When the update ends with the game up, stay only while there is something
-// to lose: a round in play (paused counts) or a high score being signed. The
-// title and game-over screens close right away, as does a hidden game.
-function keepAfterUpdate(playing, phase) {
-  return !!playing && (phase === "playing" || phase === "entry")
-}
-
 // The last thing omarchy-update-restart does is restart the shell, which
 // ends this plugin too. Seen in the log tail, it is the cue to save the game.
 function restartingShell(tail) {

@@ -29,7 +29,7 @@ the button again, and you're back where you left off.
 | P | Pause |
 | M | Mute (remembered) |
 | Esc | Back to the update |
-| Q | Close the game, once the update has finished (a letter while signing initials) |
+| Q | Close the game, once the update is complete (a letter while signing initials) |
 
 Extra ship every 10,000 points. Every so often a flying saucer drifts across
 taking potshots: the big one (200) sprays at random, the small one (1,000)
@@ -102,10 +102,10 @@ surface exactly over that window. Until you press Play, only the button takes
 clicks, so the terminal works as usual. Prompt detection reads the tail of
 `/tmp/omarchy-update.log`, which `omarchy update` already writes.
 
-If the update ends while you're mid-round or signing a high score, the game
-stays put so you can finish: the strip along the bottom says the update is
-done, and the game closes a few seconds after game over, or when you press Esc
-or Q. On the title or game-over screen it just closes.
+If the update ends while the game is up, the game keeps going exactly as it
+was, with an "UPDATE COMPLETE" banner under the score and the update's last
+line in the strip along the bottom. Nothing closes on its own: leave with Q or
+Esc when you're done, then close the update terminal whenever you like.
 
 A successful update ends by restarting the shell, which would take the game
 with it. So while an update runs, a round in progress is saved every couple of

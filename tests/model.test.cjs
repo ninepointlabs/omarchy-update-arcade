@@ -73,13 +73,6 @@ assert.equal(model.placement({ ...report, window: { ...report.window, fullscreen
 assert.equal(model.placement({ ...report, window: null }), null);
 assert.equal(model.placement({ running: false }), null);
 
-// The update ending mid-round keeps the game up; nothing to lose closes it.
-assert.equal(model.keepAfterUpdate(true, "playing"), true, "round in play, paused or not");
-assert.equal(model.keepAfterUpdate(true, "entry"), true, "a high score being signed");
-assert.equal(model.keepAfterUpdate(true, "title"), false, "no round started");
-assert.equal(model.keepAfterUpdate(true, "over"), false, "already game over");
-assert.equal(model.keepAfterUpdate(false, "playing"), false, "game not shown");
-
 // The shell restart at the very end of an update, as omarchy-update-restart prints it.
 assert.equal(model.restartingShell(`Keeping orphaned packages.\r\n\r\n${ESC}[32m\r\nRestarting shell${ESC}[0m\r\nAll plugins have been reloaded\r\n`), true);
 assert.equal(model.restartingShell(`${ESC}[32m\r\nRestarting shell${ESC}[0m`), true, "before the next line lands");
