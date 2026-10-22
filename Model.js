@@ -77,3 +77,10 @@ function placement(report) {
     height: win.size[1]
   }
 }
+
+// When the update ends with the game up, stay only while there is something
+// to lose: a round in play (paused counts) or a high score being signed. The
+// title and game-over screens close right away, as does a hidden game.
+function keepAfterUpdate(playing, phase) {
+  return !!playing && (phase === "playing" || phase === "entry")
+}

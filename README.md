@@ -101,7 +101,11 @@ surface exactly over that window. Until you press Play, only the button takes
 clicks, so the terminal works as usual. Prompt detection reads the tail of
 `/tmp/omarchy-update.log`, which `omarchy update` already writes.
 
-Updates finish by restarting the shell, which ends the game too. Consider it the
+If the update ends while you're mid-round or signing a high score (say it
+stopped on an error), the game stays put so you can finish: the strip along the
+bottom says the update is done, and the game closes at game over or when you
+press Esc. On the title or game-over screen it just closes. A successful update
+ends by restarting the shell, though, which ends the game too. Consider it the
 "insert coin" screen.
 
 ## Keybinding (optional)

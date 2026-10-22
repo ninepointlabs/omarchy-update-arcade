@@ -73,6 +73,13 @@ assert.equal(model.placement({ ...report, window: { ...report.window, fullscreen
 assert.equal(model.placement({ ...report, window: null }), null);
 assert.equal(model.placement({ running: false }), null);
 
+// The update ending mid-round keeps the game up; nothing to lose closes it.
+assert.equal(model.keepAfterUpdate(true, "playing"), true, "round in play, paused or not");
+assert.equal(model.keepAfterUpdate(true, "entry"), true, "a high score being signed");
+assert.equal(model.keepAfterUpdate(true, "title"), false, "no round started");
+assert.equal(model.keepAfterUpdate(true, "over"), false, "already game over");
+assert.equal(model.keepAfterUpdate(false, "playing"), false, "game not shown");
+
 // --------------------------------------------------------- Asteroids --
 function seeded(seed) {
   let s = seed >>> 0;

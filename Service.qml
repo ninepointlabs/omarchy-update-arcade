@@ -10,7 +10,8 @@ import "Asteroids.js" as Asteroids
 // Watches for `omarchy update` and, while it runs, pins a small Play button
 // to the corner of its terminal. Play lays Asteroids over the terminal; the
 // update keeps going underneath. When the update asks a question the game
-// gets out of the way on its own.
+// gets out of the way on its own. If the update ends mid-round, the game
+// stays up until the round is over or the player leaves.
 Item {
   id: root
 
@@ -30,6 +31,9 @@ Item {
   property string status: ""
   property bool needsInput: false
   property bool playing: false
+  // The update ended while a round was going; the overlay stays on its last
+  // rectangle until the player is done.
+  property bool finished: false
   property var scoreTable: []
   property bool muted: false
 
@@ -47,12 +51,22 @@ Item {
 
     updating = !!report.running
     if (!updating) {
+      needsInput = false
+      // The probe has no window for a finished update, so keep the last one,
+      // as long as its screen is still there.
+      if ((finished || Model.keepAfterUpdate(playing, game.phase)) && place && screenNamed(place.screen)) {
+        finished = true
+        return
+      }
+      if (finished) hideGame()
+      finished = false
       playing = false
       place = null
-      needsInput = false
       status = ""
       return
     }
+    // A new update while the finished game is still up: back to tracking it.
+    finished = false
 
     var next = Model.placement(report)
     // Only swap the object when the rectangle moved, so bindings stay quiet.
@@ -78,8 +92,15 @@ Item {
     playing = false
     // Hand the keyboard back to the terminal, where the update lives.
     // The address goes into a Lua expression, so only take Hyprland's own shape.
+    // If the terminal has closed since, hyprctl finds nothing and does nothing.
     if (place && /^0x[0-9a-f]+$/.test(place.address)) {
       Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.focus({ window = \"address:" + place.address + "\" })"])
+    }
+    // Nothing left to come back to once the update is over.
+    if (finished) {
+      finished = false
+      place = null
+      status = ""
     }
   }
 
@@ -90,7 +111,7 @@ Item {
     function hide(): string { root.hideGame(); return "ok" }
     function toggle(): string { if (root.playing) root.hideGame(); else root.showGame(); return root.playing ? "playing" : "hidden" }
     function state(): string {
-      return JSON.stringify({ updating: root.updating, playing: root.playing, needsInput: root.needsInput, place: root.place, status: root.status })
+      return JSON.stringify({ updating: root.updating, finished: root.finished, playing: root.playing, needsInput: root.needsInput, place: root.place, status: root.status })
     }
   }
 
@@ -218,6 +239,15 @@ Item {
         onScoreSigned: function(table) { root.scoreTable = table; root.save() }
         onMuteToggled: { root.muted = !root.muted; root.save() }
         onHideRequested: root.hideGame()
+        // After the update, a round that ends closes the game, once the
+        // player has had a moment to see the score.
+        onPhaseChanged: if (root.finished && phase === "over") gameOverTimer.restart()
+      }
+
+      Timer {
+        id: gameOverTimer
+        interval: 3000
+        onTriggered: if (root.finished && game.phase === "over") root.hideGame()
       }
 
       // What the update is up to, so nobody has to peek.
@@ -240,7 +270,9 @@ Item {
           font.family: Style.font.family
           font.pixelSize: 12
           color: Commons.Color.muted
-          text: "Updating  ·  " + (root.status || "working on it")
+          text: root.finished
+            ? "Update finished  ·  press Esc when you're done" + (root.status ? "  ·  " + root.status : "")
+            : "Updating  ·  " + (root.status || "working on it")
         }
       }
     }
@@ -264,7 +296,7 @@ Item {
         font.family: Style.font.family
         font.pixelSize: 13
         color: hover.containsMouse ? Commons.Color.background : Commons.Color.foreground
-        text: root.playing ? "Show update" : (root.needsInput ? "Update needs you" : "Play Asteroids")
+        text: root.finished ? "Close game" : root.playing ? "Show update" : (root.needsInput ? "Update needs you" : "Play Asteroids")
       }
 
       MouseArea {
