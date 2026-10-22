@@ -29,6 +29,7 @@ the button again, and you're back where you left off.
 | P | Pause |
 | M | Mute (remembered) |
 | Esc | Back to the update |
+| Q | Close the game, once the update has finished (a letter while signing initials) |
 
 Extra ship every 10,000 points. Every so often a flying saucer drifts across
 taking potshots: the big one (200) sprays at random, the small one (1,000)
@@ -101,12 +102,21 @@ surface exactly over that window. Until you press Play, only the button takes
 clicks, so the terminal works as usual. Prompt detection reads the tail of
 `/tmp/omarchy-update.log`, which `omarchy update` already writes.
 
-If the update ends while you're mid-round or signing a high score (say it
-stopped on an error), the game stays put so you can finish: the strip along the
-bottom says the update is done, and the game closes at game over or when you
-press Esc. On the title or game-over screen it just closes. A successful update
-ends by restarting the shell, though, which ends the game too. Consider it the
-"insert coin" screen.
+If the update ends while you're mid-round or signing a high score, the game
+stays put so you can finish: the strip along the bottom says the update is
+done, and the game closes a few seconds after game over, or when you press Esc
+or Q. On the title or game-over screen it just closes.
+
+A successful update ends by restarting the shell, which would take the game
+with it. So while an update runs, a round in progress is saved every couple of
+seconds (and once more when the log says "Restarting shell", and as the old
+shell exits) to `~/.local/state/omarchy-update-arcade/save.json`: score, ships,
+wave, the ship and the rocks. When the shell comes back it asks "Resume your
+game?" over the update terminal, or in the middle of the screen if the update
+has already finished. Enter picks the round back up; Esc throws it away. The
+save is deleted when the round ends, when you close the game after the update,
+on resume or discard, and is ignored (and deleted) if it is more than ten
+minutes old or doesn't check out.
 
 ## Keybinding (optional)
 

@@ -615,6 +615,145 @@ function step(state, dt, input) {
   }
 }
 
+// --- save and resume ---------------------------------------------------------
+// A successful update ends by restarting the shell, which takes the game with
+// it. The round in progress is kept as plain data and offered back after.
+// Bullets, particles and saucers are left out: they are gone in a second anyway.
+
+var SAVE_VERSION = 1
+var SAVE_MAX_AGE = 10 * 60 * 1000   // ms
+var SAVE_MAX_ROCKS = 100
+var SAVE_MAX_BYTES = 64 * 1024
+
+function snapshot(state, now) {
+  if (!state || (state.phase !== "playing" && state.phase !== "entry")) return null
+  var ship = state.phase === "playing" && state.ship && state.ship.alive ? state.ship : null
+  return {
+    version: SAVE_VERSION,
+    savedAt: now,
+    phase: state.phase,
+    w: state.w, h: state.h,
+    score: state.score,
+    lives: state.lives,
+    level: state.level,
+    ship: ship ? { x: ship.x, y: ship.y, vx: ship.vx, vy: ship.vy, angle: ship.angle } : null,
+    rocks: state.phase === "playing" ? state.rocks.map(function(r) {
+      return { x: r.x, y: r.y, size: r.size, vx: r.vx, vy: r.vy, angle: r.angle, spin: r.spin, outline: r.outline.slice() }
+    }) : [],
+    entry: state.phase === "entry" && state.entry ? { initials: state.entry.initials, pos: state.entry.pos } : null
+  }
+}
+
+// Ten minutes covers the restart; a minute of slack for a clock that moved.
+function saveFresh(savedAt, now) {
+  return now - savedAt <= SAVE_MAX_AGE && savedAt - now <= 60 * 1000
+}
+
+function finite(value, limit) {
+  return typeof value === "number" && isFinite(value) && Math.abs(value) <= limit
+}
+
+function wholeIn(value, lo, hi) {
+  return typeof value === "number" && Math.floor(value) === value && value >= lo && value <= hi
+}
+
+// The save file, checked field by field. Returns a clean copy, or null for
+// anything stale, corrupt or odd; the caller deletes the file then.
+function readSave(text, now) {
+  if (typeof text !== "string" || text.length === 0 || text.length > SAVE_MAX_BYTES) return null
+  var data
+  try { data = JSON.parse(text) } catch (e) { return null }
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null
+  if (data.version !== SAVE_VERSION || !finite(data.savedAt, 1e15)) return null
+  if (!saveFresh(data.savedAt, now)) return null
+  if (data.phase !== "playing" && data.phase !== "entry") return null
+  if (!finite(data.w, 20000) || !finite(data.h, 20000) || data.w < 100 || data.h < 100) return null
+  if (!wholeIn(data.score, 0, 1e9) || !wholeIn(data.level, 1, 999)) return null
+  if (!wholeIn(data.lives, data.phase === "playing" ? 1 : 0, 99)) return null
+
+  var out = {
+    savedAt: data.savedAt, phase: data.phase, w: data.w, h: data.h,
+    score: data.score, lives: data.lives, level: data.level,
+    ship: null, rocks: [], entry: null
+  }
+  var far = 1e5
+  if (data.ship !== null && data.ship !== undefined) {
+    var sh = data.ship
+    if (!sh || typeof sh !== "object") return null
+    if (!finite(sh.x, far) || !finite(sh.y, far) || !finite(sh.vx, far) || !finite(sh.vy, far) || !finite(sh.angle, far)) return null
+    out.ship = { x: sh.x, y: sh.y, vx: sh.vx, vy: sh.vy, angle: sh.angle }
+  }
+  if (!Array.isArray(data.rocks) || data.rocks.length > SAVE_MAX_ROCKS) return null
+  for (var i = 0; i < data.rocks.length; i++) {
+    var r = data.rocks[i]
+    if (!r || typeof r !== "object" || !wholeIn(r.size, 1, 3)) return null
+    if (!finite(r.x, far) || !finite(r.y, far) || !finite(r.vx, far) || !finite(r.vy, far)
+        || !finite(r.angle, far) || !finite(r.spin, 10)) return null
+    if (!Array.isArray(r.outline) || r.outline.length < 3 || r.outline.length > 32) return null
+    for (var j = 0; j < r.outline.length; j++) {
+      if (!finite(r.outline[j], 2) || r.outline[j] < 0.3) return null
+    }
+    out.rocks.push({ x: r.x, y: r.y, size: r.size, vx: r.vx, vy: r.vy, angle: r.angle, spin: r.spin, outline: r.outline.slice() })
+  }
+  if (data.phase === "entry") {
+    var e = data.entry
+    if (!e || typeof e !== "object" || typeof e.initials !== "string" || e.initials.length !== 3 || !wholeIn(e.pos, 0, 2)) return null
+    for (var c = 0; c < 3; c++) {
+      if (LETTERS.indexOf(e.initials[c]) < 0) return null
+    }
+    out.entry = { initials: e.initials, pos: e.pos }
+  }
+  return out
+}
+
+function clampSpeed(o, limit) {
+  var speed = Math.sqrt(o.vx * o.vx + o.vy * o.vy)
+  if (speed > limit) {
+    o.vx *= limit / speed
+    o.vy *= limit / speed
+  }
+}
+
+// Picks a checked save back up in a game of whatever size the overlay is now.
+// The ship comes back shielded, so nobody resumes into a rock.
+function resume(state, save) {
+  start(state)
+  var fx = state.w / save.w
+  var fy = state.h / save.h
+  state.score = save.score
+  state.lives = save.lives
+  state.level = save.level
+  state.nextLifeAt = (Math.floor(save.score / EXTRA_LIFE_EVERY) + 1) * EXTRA_LIFE_EVERY
+  if (state.score > state.highScore) state.highScore = state.score
+  state.saucerIn = nextSaucerDelay(state)
+  if (save.phase === "entry") {
+    state.rocks = []
+    state.ship = null
+    state.phase = "entry"
+    state.entry = { initials: save.entry.initials, pos: save.entry.pos, since: state.time }
+    return
+  }
+  state.rocks = save.rocks.map(function(r) {
+    var rock = {
+      x: wrap(((r.x % save.w) + save.w) % save.w * fx, state.w),
+      y: wrap(((r.y % save.h) + save.h) % save.h * fy, state.h),
+      size: r.size, r: ROCK_RADIUS[r.size] * state.scale,
+      vx: r.vx, vy: r.vy, angle: r.angle, spin: r.spin, outline: r.outline.slice()
+    }
+    clampSpeed(rock, ROCK_SPEED[3] * 4 * (1 + save.level * 0.06))
+    return rock
+  })
+  if (save.ship) {
+    var ship = state.ship
+    ship.x = wrap(((save.ship.x % save.w) + save.w) % save.w * fx, state.w)
+    ship.y = wrap(((save.ship.y % save.h) + save.h) % save.h * fy, state.h)
+    ship.vx = save.ship.vx
+    ship.vy = save.ship.vy
+    ship.angle = save.ship.angle % TAU
+    clampSpeed(ship, MAX_SPEED)
+  }
+}
+
 // Saucer outline as polylines in local coordinates: the hull, the rim line
 // across it, and the dome on top.
 function saucerLines(r) {

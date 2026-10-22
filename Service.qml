@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
@@ -11,7 +12,9 @@ import "Asteroids.js" as Asteroids
 // to the corner of its terminal. Play lays Asteroids over the terminal; the
 // update keeps going underneath. When the update asks a question the game
 // gets out of the way on its own. If the update ends mid-round, the game
-// stays up until the round is over or the player leaves.
+// stays up until the round is over or the player leaves. The round is saved
+// as it goes, since a successful update ends by restarting the shell, and
+// offered back when the shell comes up again.
 Item {
   id: root
 
@@ -34,6 +37,12 @@ Item {
   // The update ended while a round was going; the overlay stays on its last
   // rectangle until the player is done.
   property bool finished: false
+  // A checked save from before a shell restart, not yet answered.
+  property var pendingSave: null
+  property bool offered: false
+  // This instance has written save.json since it was last deleted.
+  property bool saving: false
+  property bool reported: false
   property var scoreTable: []
   property bool muted: false
 
@@ -49,12 +58,14 @@ Item {
     var report
     try { report = JSON.parse(text) } catch (e) { return }
 
+    reported = true
     updating = !!report.running
     if (!updating) {
       needsInput = false
       // The probe has no window for a finished update, so keep the last one,
       // as long as its screen is still there.
-      if ((finished || Model.keepAfterUpdate(playing, game.phase)) && place && screenNamed(place.screen)) {
+      var keep = finished || Model.keepAfterUpdate(playing, game.phase) || (playing && game.resumeOffer !== null)
+      if (keep && place && screenNamed(place.screen)) {
         finished = true
         return
       }
@@ -63,6 +74,9 @@ Item {
       playing = false
       place = null
       status = ""
+      // A round left hidden when the update ended without a restart.
+      if (saving) dropSave()
+      offerResume()
       return
     }
     // A new update while the finished game is still up: back to tracking it.
@@ -80,6 +94,8 @@ Item {
     var asking = Model.needsInput(report.logTail, report.logAge)
     if (asking && !needsInput && playing) hideGame()
     needsInput = asking
+    if (Model.restartingShell(report.logTail)) saveNow()
+    offerResume()
   }
 
   function showGame() {
@@ -101,17 +117,103 @@ Item {
       finished = false
       place = null
       status = ""
+      dropSave()
     }
+  }
+
+  // Esc, Q, the button and IPC hide. Walking away from the resume prompt
+  // throws the save away; a round hidden during an update stays saved, since
+  // the shell restart can still come.
+  function closeGame() {
+    if (game.resumeOffer) dropSave()
+    hideGame()
+  }
+
+  // --- the round across a shell restart -----------------------------------
+
+  function roundToKeep() {
+    return (updating || finished) && !game.resumeOffer && !!game.state
+      && (game.phase === "playing" || game.phase === "entry")
+  }
+
+  // Blocking write, so it lands even from onDestruction.
+  function saveNow() {
+    if (!roundToKeep()) return
+    var snap = Asteroids.snapshot(game.state, Date.now())
+    if (!snap) return
+    saveFile.setText(JSON.stringify(snap) + "\n")
+    saving = true
+  }
+
+  function dropSave() {
+    saving = false
+    pendingSave = null
+    game.resumeOffer = null
+    Quickshell.execDetached(["rm", "-f", saveFile.path])
+  }
+
+  function loadSave(text) {
+    var save = Asteroids.readSave(text, Date.now())
+    if (!save) { dropSave(); return }
+    pendingSave = save
+    offerResume()
+  }
+
+  // Once per save: over the terminal if an update still runs (waiting until
+  // the probe finds it), mid-screen if the update is over.
+  function offerResume() {
+    if (!pendingSave || offered || !reported || needsInput || playing) return
+    if (!Asteroids.saveFresh(pendingSave.savedAt, Date.now())) { dropSave(); return }
+    if (updating) {
+      if (!place) return
+    } else {
+      var spot = centredPlace()
+      if (!spot) return
+      place = spot
+      finished = true
+    }
+    offered = true
+    game.resumeOffer = pendingSave
+    playing = true
+  }
+
+  function centredPlace() {
+    var screen = (Hyprland.focusedMonitor && screenNamed(Hyprland.focusedMonitor.name)) || (Quickshell.screens || [])[0]
+    return screen ? Model.centred(screen.name, screen.width, screen.height) : null
+  }
+
+  Component.onCompleted: Quickshell.execDetached(["mkdir", "-p", root.stateDir])
+  // `quickshell kill`, which the restart uses, does run this (checked by hand).
+  Component.onDestruction: { try { saveNow() } catch (e) {} }
+
+  Timer {
+    interval: 2000
+    running: root.updating || root.finished
+    repeat: true
+    // A hidden round doesn't move, so once saved it stays saved.
+    onTriggered: if (root.playing || !root.saving) root.saveNow()
+  }
+
+  FileView {
+    id: saveFile
+    path: root.stateDir + "/save.json"
+    printErrors: false
+    blockWrites: true
+    atomicWrites: true
+    property bool checked: false
+    onLoaded: if (!checked) { checked = true; root.loadSave(text()) }
+    onLoadFailed: checked = true
   }
 
   // omarchy-shell ninepointlabs.update-arcade toggle, e.g. from a keybinding.
   IpcHandler {
     target: "ninepointlabs.update-arcade"
     function play(): string { root.showGame(); return root.playing ? "playing" : "no update running" }
-    function hide(): string { root.hideGame(); return "ok" }
-    function toggle(): string { if (root.playing) root.hideGame(); else root.showGame(); return root.playing ? "playing" : "hidden" }
+    function hide(): string { root.closeGame(); return "ok" }
+    function toggle(): string { if (root.playing) root.closeGame(); else root.showGame(); return root.playing ? "playing" : "hidden" }
     function state(): string {
-      return JSON.stringify({ updating: root.updating, finished: root.finished, playing: root.playing, needsInput: root.needsInput, place: root.place, status: root.status })
+      return JSON.stringify({ updating: root.updating, finished: root.finished, playing: root.playing, needsInput: root.needsInput,
+                              place: root.place, status: root.status, saved: root.saving, resumeOffered: root.pendingSave !== null })
     }
   }
 
@@ -238,10 +340,16 @@ Item {
         muted: root.muted
         onScoreSigned: function(table) { root.scoreTable = table; root.save() }
         onMuteToggled: { root.muted = !root.muted; root.save() }
-        onHideRequested: root.hideGame()
-        // After the update, a round that ends closes the game, once the
-        // player has had a moment to see the score.
-        onPhaseChanged: if (root.finished && phase === "over") gameOverTimer.restart()
+        quitWithQ: root.finished
+        onHideRequested: root.closeGame()
+        onResumed: root.dropSave()
+        onResumeDeclined: root.closeGame()
+        // A round that ends is not worth saving any more. After the update,
+        // it also closes the game, once the player has seen the score.
+        onPhaseChanged: if (phase === "over") {
+          if (root.saving) root.dropSave()
+          if (root.finished) gameOverTimer.restart()
+        }
       }
 
       Timer {
@@ -271,7 +379,7 @@ Item {
           font.pixelSize: 12
           color: Commons.Color.muted
           text: root.finished
-            ? "Update finished  ·  press Esc when you're done" + (root.status ? "  ·  " + root.status : "")
+            ? "Update finished  ·  press Esc or Q when you're done" + (root.status ? "  ·  " + root.status : "")
             : "Updating  ·  " + (root.status || "working on it")
         }
       }
@@ -296,7 +404,7 @@ Item {
         font.family: Style.font.family
         font.pixelSize: 13
         color: hover.containsMouse ? Commons.Color.background : Commons.Color.foreground
-        text: root.finished ? "Close game" : root.playing ? "Show update" : (root.needsInput ? "Update needs you" : "Play Asteroids")
+        text: root.playing && game.resumeOffer ? "Discard game" : root.finished ? "Close game" : root.playing ? "Show update" : (root.needsInput ? "Update needs you" : "Play Asteroids")
       }
 
       MouseArea {
@@ -304,7 +412,7 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.playing ? root.hideGame() : root.showGame()
+        onClicked: root.playing ? root.closeGame() : root.showGame()
       }
     }
   }

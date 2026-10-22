@@ -84,3 +84,26 @@ function placement(report) {
 function keepAfterUpdate(playing, phase) {
   return !!playing && (phase === "playing" || phase === "entry")
 }
+
+// The last thing omarchy-update-restart does is restart the shell, which
+// ends this plugin too. Seen in the log tail, it is the cue to save the game.
+function restartingShell(tail) {
+  return /(^|\n)\s*Restarting shell\s*(\r?\n|$)/.test(stripAnsi(tail))
+}
+
+// Where a resumed game goes when there is no update terminal to cover: the
+// middle of the screen, a good size but never the whole of it.
+function centred(screenName, screenWidth, screenHeight) {
+  if (!screenName || !(screenWidth > 0) || !(screenHeight > 0)) return null
+  var width = Math.round(Math.min(screenWidth - 80, Math.max(640, screenWidth * 0.6)))
+  var height = Math.round(Math.min(screenHeight - 80, Math.max(480, screenHeight * 0.6)))
+  if (width < 200 || height < 150) return null
+  return {
+    screen: screenName,
+    address: "",
+    x: Math.round((screenWidth - width) / 2),
+    y: Math.round((screenHeight - height) / 2),
+    width: width,
+    height: height
+  }
+}
