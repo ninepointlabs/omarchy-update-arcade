@@ -14,16 +14,26 @@ FocusScope {
   // Top ten as [{initials, score, date}], loaded and saved by the caller.
   property var table: []
   property bool muted: false
+  // A checked save (Asteroids.readSave) to offer back; null when there is none.
+  property var resumeOffer: null
+  // The update is over: a banner says so, and Q leaves as well as Esc (never
+  // during initials entry, where Q is a letter).
+  property bool updateDone: false
 
   signal scoreSigned(var table)
   signal hideRequested()
   signal muteToggled()
+  signal resumed()
+  signal resumeDeclined()
 
   property var state: null
   property bool paused: false
   // Mirrors state.phase === "playing" as a real property: the game state is a
   // plain JS object, so a binding that reads it never hears it change.
   property bool inPlay: false
+  // The same for the whole phase (title | playing | entry | over), so the
+  // caller can tell a round in progress from one that is done.
+  property string phase: "title"
   readonly property bool soundOn: sounds.item ? sounds.item.active : false
   readonly property var held: ({})
 
@@ -67,6 +77,17 @@ FocusScope {
     return Qt.formatDate(new Date(), "yyyy-MM-dd")
   }
 
+  function acceptResume() {
+    ensureState()
+    if (!state || !resumeOffer) return
+    Asteroids.resume(state, resumeOffer)
+    paused = false
+    resumeOffer = null
+    phase = state.phase
+    inPlay = state.phase === "playing"
+    root.resumed()
+  }
+
   function sign() {
     root.scoreSigned(Asteroids.signEntry(root.state, today()))
   }
@@ -102,11 +123,19 @@ FocusScope {
     Keys.onPressed: function(event) {
       if (event.isAutoRepeat) { event.accepted = true; return }
       var s = root.state
+      // The resume prompt takes only its two answers.
+      if (root.resumeOffer) {
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) root.acceptResume()
+        else if (event.key === Qt.Key_Escape || (event.key === Qt.Key_Q && root.updateDone)) root.resumeDeclined()
+        canvas.requestPaint()
+        event.accepted = true
+        return
+      }
       if (event.key !== Qt.Key_Escape && root.entryKey(event)) {
         event.accepted = true
         return
       }
-      if (event.key === Qt.Key_Escape) {
+      if (event.key === Qt.Key_Escape || (event.key === Qt.Key_Q && root.updateDone)) {
         root.hideRequested()
       } else if (event.key === Qt.Key_M) {
         root.muteToggled()
@@ -138,6 +167,7 @@ FocusScope {
       if (!root.paused) {
         Asteroids.step(s, frameTime, root.input())
         root.inPlay = s.phase === "playing"
+        root.phase = s.phase
         var board = sounds.item
         if (board) for (var i = 0; i < s.events.length; i++) board.play(s.events[i])
       }
@@ -326,14 +356,26 @@ FocusScope {
       // Top center: the top-right corner belongs to the Show update button.
       text(ctx, "HI " + s.highScore, width / 2, pad + hud, hud * 0.8, "center", root.accent)
       if (root.muted && sounds.item) text(ctx, "MUTED", width / 2, pad + hud * 2, hud * 0.55, "center", root.ink)
+      // Under the HUD, out of the way of the play: the game carries on.
+      if (root.updateDone) {
+        text(ctx, "UPDATE COMPLETE", width / 2, pad + hud * 3.1, hud * 0.8, "center", root.accent)
+        text(ctx, "Q or ESC to exit when you're done", width / 2, pad + hud * 3.9, hud * 0.55, "center", root.ink)
+      }
 
       var cx = width / 2
       var cy = height / 2
-      if (s.phase === "title") {
+      if (root.resumeOffer) {
+        var o = root.resumeOffer
+        text(ctx, "RESUME YOUR GAME?", cx, cy - 34 * k, 34 * k, "center", root.ink)
+        text(ctx, o.phase === "entry" ? o.score + "  ·  a high score to sign"
+                                      : o.score + "  ·  wave " + o.level + "  ·  " + o.lives + (o.lives === 1 ? " ship" : " ships"),
+             cx, cy + 2 * k, 16 * k, "center", root.ink)
+        text(ctx, "ENTER to resume  ·  ESC to discard", cx, cy + 32 * k, 16 * k, "center", root.accent)
+      } else if (s.phase === "title") {
         text(ctx, "ASTEROIDS", cx, height * 0.2 + 20 * k, 46 * k, "center", root.ink)
         text(ctx, "SPACE to start", cx, height * 0.2 + 52 * k, 16 * k, "center", root.accent)
         drawTable(ctx, s, cx, height * 0.2 + 92 * k, k)
-        text(ctx, "← → turn   ↑ thrust   SPACE fire   ↓ hyperspace   P pause   M mute   ESC back to the update",
+        text(ctx, "← → turn   ↑ thrust   SPACE fire   ↓ hyperspace   P pause   M mute   " + (root.updateDone ? "Q / ESC exit" : "ESC back to the update"),
              cx, height - pad, 12 * k, "center", root.ink)
       } else if (s.phase === "entry") {
         drawEntry(ctx, s, cx, cy, k)

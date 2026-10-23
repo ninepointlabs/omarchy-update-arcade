@@ -29,6 +29,7 @@ the button again, and you're back where you left off.
 | P | Pause |
 | M | Mute (remembered) |
 | Esc | Back to the update |
+| Q | Close the game, once the update is complete (a letter while signing initials) |
 
 Extra ship every 10,000 points. Every so often a flying saucer drifts across
 taking potshots: the big one (200) sprays at random, the small one (1,000)
@@ -101,8 +102,21 @@ surface exactly over that window. Until you press Play, only the button takes
 clicks, so the terminal works as usual. Prompt detection reads the tail of
 `/tmp/omarchy-update.log`, which `omarchy update` already writes.
 
-Updates finish by restarting the shell, which ends the game too. Consider it the
-"insert coin" screen.
+If the update ends while the game is up, the game keeps going exactly as it
+was, with an "UPDATE COMPLETE" banner under the score and the update's last
+line in the strip along the bottom. Nothing closes on its own: leave with Q or
+Esc when you're done, then close the update terminal whenever you like.
+
+A successful update ends by restarting the shell, which would take the game
+with it. So while an update runs, a round in progress is saved every couple of
+seconds (and once more when the log says "Restarting shell", and as the old
+shell exits) to `~/.local/state/omarchy-update-arcade/save.json`: score, ships,
+wave, the ship and the rocks. When the shell comes back it asks "Resume your
+game?" over the update terminal, or in the middle of the screen if the update
+has already finished. Enter picks the round back up; Esc throws it away. The
+save is deleted when the round ends, when you close the game after the update,
+on resume or discard, and is ignored (and deleted) if it is more than ten
+minutes old or doesn't check out.
 
 ## Keybinding (optional)
 
@@ -117,6 +131,7 @@ node tests/model.test.cjs   # game rules, saucers, sound events, prompts, score 
 tests/probe.test.sh         # probe against fake hyprctl; no window title on any command line
 tests/qml/run.sh            # compiles the QML in a windowless Quickshell, checks sounds load
 NO_SOUND=1 tests/qml/run.sh # same without Qt Multimedia: only Sounds.qml should FAIL
+tests/qml/behaviour.sh      # finished mode and save/resume, headless; nothing shows on screen
 ```
 
 `python3 tools/make-sounds.py` regenerates `sounds/`.

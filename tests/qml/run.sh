@@ -13,6 +13,8 @@ cp -r "${OMARCHY_PATH:-/usr/share/omarchy}/shell/Commons" "$stage/"
 if [[ ${NO_SOUND:-} == 1 ]]; then
   sed -i 's/^import QtMultimedia$/import QtMultimediaMissing/' "$stage/Sounds.qml"
 fi
-timeout 8 qs -p "$stage" >"$stage/out.log" 2>&1
+# Its own state folder, so the real high scores and save file are never read or touched.
+mkdir -p "$stage/state"
+XDG_STATE_HOME="$stage/state" timeout 8 qs -p "$stage" >"$stage/out.log" 2>&1
 grep -E "OK |FAIL |rror" "$stage/out.log" | grep -v portal | sed 's/.*qml[^:]*: //'
 grep -q DONE "$stage/out.log" && ! grep -E "FAIL |rror" "$stage/out.log" | grep -qv portal
