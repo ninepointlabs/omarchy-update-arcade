@@ -102,10 +102,12 @@ surface exactly over that window. Until you press Play, only the button takes
 clicks, so the terminal works as usual. Prompt detection reads the tail of
 `/tmp/omarchy-update.log`, which `omarchy update` already writes.
 
-If the update ends while the game is up, the game keeps going exactly as it
-was, with an "UPDATE COMPLETE" banner under the score and the update's last
-line in the strip along the bottom. Nothing closes on its own: leave with Q or
-Esc when you're done, then close the update terminal whenever you like.
+If the update ends mid-round (or while you're signing a high score), the game
+keeps going exactly as it was, with an "UPDATE COMPLETE" banner under the score
+and the update's last line in the strip along the bottom. Nothing closes on its
+own after that, game over included: leave with Q or Esc when you're done, then
+close the update terminal whenever you like. On the title or game-over screen,
+the game just closes when the update ends.
 
 A successful update ends by restarting the shell, which would take the game
 with it. So while an update runs, a round in progress is saved every couple of

@@ -11,8 +11,8 @@ import "Asteroids.js" as Asteroids
 // Watches for `omarchy update` and, while it runs, pins a small Play button
 // to the corner of its terminal. Play lays Asteroids over the terminal; the
 // update keeps going underneath. When the update asks a question the game
-// gets out of the way on its own. If the update ends with the game up, the
-// game carries on with an "update complete" banner until the player leaves. The round is saved
+// gets out of the way on its own. If the update ends mid-round, the game
+// carries on with an "update complete" banner until the player leaves. The round is saved
 // as it goes, since a successful update ends by restarting the shell, and
 // offered back when the shell comes up again.
 Item {
@@ -34,7 +34,7 @@ Item {
   property string status: ""
   property bool needsInput: false
   property bool playing: false
-  // The update ended with the game up; the overlay stays on its last
+  // The update ended mid-round; the overlay stays on its last
   // rectangle until the player leaves with Esc, Q or the button.
   property bool finished: false
   // A checked save from before a shell restart, not yet answered.
@@ -64,7 +64,8 @@ Item {
       needsInput = false
       // The probe has no window for a finished update, so keep the last one,
       // as long as its screen is still there.
-      if ((finished || playing) && place && screenNamed(place.screen)) {
+      var keep = finished || Model.keepAfterUpdate(playing, game.phase) || (playing && game.resumeOffer !== null)
+      if (keep && place && screenNamed(place.screen)) {
         finished = true
         return
       }

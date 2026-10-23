@@ -55,16 +55,23 @@ ShellRoot {
         later(400, function() { check("update ends without restart: save deleted", !exists() && !s.playing); console.log("DONE") })
       })
     } else if (scenario === "finished") {
-      // Title screen up when the update ends: it stays, with the banner.
-      s.apply(run); s.showGame()
+      // No round in progress when the update ends: it closes right away.
+      s.apply(run); s.showGame(); g.phase = "title"
       s.apply('{"running":false}')
-      check("title screen stays up", s.playing && s.finished && s.place !== null && g.updateDone)
+      check("title screen closes", !s.playing && !s.finished && s.place === null && !g.updateDone)
+      s.apply(run); s.showGame(); g.phase = "over"
+      s.apply('{"running":false}')
+      check("game-over screen closes", !s.playing && !s.finished && s.place === null)
+      // Signing a high score counts as the round still going.
+      s.apply(run); s.showGame(); g.phase = "entry"
+      s.apply('{"running":false}')
+      check("initials entry stays up", s.playing && s.finished && g.updateDone)
       s.hideGame()
       check("Esc closes it", !s.playing && !s.finished && s.place === null && !g.updateDone)
       // A round in play: it keeps going, through game over and beyond.
       startRound(s, g)
       s.apply('{"running":false}')
-      check("round stays up", s.playing && s.finished && g.state.phase === "playing")
+      check("round stays up, with the banner", s.playing && s.finished && g.state.phase === "playing" && g.updateDone)
       s.apply('{"running":false}')
       check("stays across probes", s.playing && s.finished)
       Asteroids.endGame(g.state)
